@@ -1,0 +1,76 @@
+
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      # Nginx Container
+      - name: nginx
+        image: nginx
+        ports:
+        - name: http
+          containerPort: 80
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      # Regup Sidekick Container (Regsiter pods in consul)
+      - name: regup
+        image: registry.hub.docker.com/spunon/regup:0.1.5
+        imagePullPolicy: Always
+        env:
+        # IP of the node machine, required if used for ADDRESS_TYPE below
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        # IP of the pod required if used for ADDRESS_TYPE below
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        # *Required - Register service with this address, POD/NODE
+        - name: ADDRESS_TYPE
+          value: "POD"
+        # *Required - Name of the service you'd like to register
+        - name: SERVICE_NAME
+          value: "nginx"
+        # *Required - Port you'd like to advertise along with your apps address above
+        - name: SERVICE_PORT
+          value: "80"
+        # *Required - Type of health check, currently supports HTTP or TCP
+        - name: HEALTH_TYPE
+          value: "HTTP"
+        # *Required - HTTP/TCP endpoint for the healthcheck to query
+        - name: HEALTH_ENDPOINT
+          value: "http://${SERVICE_IP}:${SERVICE_PORT}${HEALTH_CONTEXT}"
+        # Extra context to be used with HEALTH_ENDPOINT below
+        - name: HEALTH_CONTEXT
+          value: "/index.html"
+        # Deregister if service is unhealthy for a specififed length of time (default 1m)
+        - name: HEALTH_DEREGISTER_AFTER
+          value: "1m"
+        # Interval to query the HEALTH_ENDPOINT (default 10s)
+        - name: HEALTH_INTERVAL
+          value: "10s"
+        # Timeout for query of HEALTH_ENDPOINT (default 1s)
+        - name: HEALTH_TIMEOUT
+          value: "1s"
+        # Skip TLS verification (default true)
+        - name: HEALTH_TLS_SKIP_VERIFY
+          value: "true"
+        
+      nodeSelector:
+        role: app 
