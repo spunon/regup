@@ -1,0 +1,7 @@
+{
+  \"ID\": \"${SERVICE_ID}\",
+  \"Name\": \"${SERVICE_NAME}\",
+  \"Address\": \"${SERVICE_IP}\",
+  \"Port\": ${SERVICE_PORT}
+  ${CHECK_SCRIPT}
+}
