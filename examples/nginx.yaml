@@ -26,17 +26,19 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
+  
       # Regup Sidekick Container (Regsiter pods in consul)
       - name: regup
-        image: registry.hub.docker.com/spunon/regup:0.1.5
+        image: docker.io/regup:v1
         imagePullPolicy: Always
         env:
-        # IP of the node machine, required if used for ADDRESS_TYPE below
+        # *Required - IP of the host node, assumes consul agent is running on the node where 
+        # the pod will be deployed with hostNetwork set to true.
         - name: NODE_IP
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
-        # IP of the pod required if used for ADDRESS_TYPE below
+        # IP of the pod - *Required if used for ADDRESS_TYPE below
         - name: POD_IP
           valueFrom:
             fieldRef:
@@ -50,10 +52,11 @@ spec:
         # *Required - Port you'd like to advertise along with your apps address above
         - name: SERVICE_PORT
           value: "80"
-        # *Required - Type of health check, currently supports HTTP or TCP
+        # *Required (If using health check) - Type of health check, currently supports HTTP or TCP
         - name: HEALTH_TYPE
           value: "HTTP"
-        # *Required - HTTP/TCP endpoint for the healthcheck to query
+        # *Required (If using health check) - HTTP/TCP endpoint for the healthcheck to query
+        # NOTE: SERVICE_IP will be either POD_IP or NODE_IP depending on ADDRESS_TYPE
         - name: HEALTH_ENDPOINT
           value: "http://${SERVICE_IP}:${SERVICE_PORT}${HEALTH_CONTEXT}"
         # Extra context to be used with HEALTH_ENDPOINT below
@@ -71,6 +74,3 @@ spec:
         # Skip TLS verification (default true)
         - name: HEALTH_TLS_SKIP_VERIFY
           value: "true"
-        
-      nodeSelector:
-        role: app 

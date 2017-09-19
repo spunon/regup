@@ -54,15 +54,17 @@ echo "Registering ${SERVICE_ID} in consul as service: ${SERVICE_NAME} address: $
 echo "Registration JSON:"
 cat /reg.json
 
-
-# Register the service in consul with the json blob you've constructed
-curl -s \
-    --request PUT \
-    --data @reg.json \
-    http://${NODE_IP}:8500/v1/agent/service/register
-
 # Loop until the container catches a signal to shutdown
 while true; do
+    # Register the service continually in consul with the json blob you've constructed
+    # Registration happens continually in case your main pod dies and is restarted without the 
+    # entire pod being restarted. If the pod goes away HEALTH_DEREGISTER_INTERVAL will clean up
+    # the orphaned service eventually. It will be unhealthy/not serve traffic in the mean time
+    curl -s \
+        --request PUT \
+        --data @reg.json \
+        http://${NODE_IP}:8500/v1/agent/service/register
+        
     sleep 5
 done
 
