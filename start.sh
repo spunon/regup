@@ -1,91 +1,111 @@
 #!/bin/sh
 
+if [ "$CONSUL_PROTOCOL" = "" ]; then
+    export CONSUL_PROTOCOL="http"
+    echo "Using default CONSUL_PROTOCOL value: $CONSUL_PROTOCOL"
+fi
+
 # Trapping and cleanup to deregister service upon pod exit
 trap cleanup 1 2 3 6 15 19 20 
 cleanup()
 {
-    echo "Caught signal, removing registration for ${SERVICE_ID}."
+    echo "Caught signal, removing registration for $SERVICE_ID."
     curl -s \
         --request PUT \
-        http://${NODE_IP}:8500/v1/agent/service/deregister/${SERVICE_ID};
-    echo "Done cleaning up, exiting."
+        $CONSUL_PROTOCOL://$NODE_IP:8500/v1/agent/service/deregister/$SERVICE_ID;
+    echo "Service $SERVICE_NAME has been deregistered, exiting."
     exit 1
 }
 
-# Set service_ip based on the variable passed into address_type
+# Set SERVICE_IP based on the variable passed into address_type
 if [ "$ADDRESS_TYPE" = "NODE" ]; then
-    export SERVICE_IP=${NODE_IP}
+    export SERVICE_IP=$NODE_IP
 else
-    export SERVICE_IP=${POD_IP}
+    export SERVICE_IP=$POD_IP
 fi
 
-# Set Service ID as Name-IP
-SERVICE_ID=${SERVICE_NAME}-$RANDOM
+export SERVICE_PORT
+export SERVICE_ID=$SERVICE_NAME-$RANDOM
 
-# Check to see if health protocol was set, to see if we need to
-# render the healtcheck template that will be placed inside the payload
-if [ ! -z "${HEALTH_TYPE}" ]; then
+# Check to see if HEALTH_TYPE was set, to see if we need to render
+# the healtcheck template that will be placed inside the payload
+if [ "$HEALTH_TYPE" != "" ]; then
+    echo "Health Type: $HEALTH_TYPE"
 
-    echo "Health Type: ${HEALTH_TYPE}"
-
-    if [ "$(echo ${HEALTH_TYPE} | tr '[:upper:]' '[:lower:]')" = "script" ]; then
-        if [ -z "${HEATH_SCRIPT}" ]; then
-            echo "ENV HEALTH_TYPE is set to ${HEALTH_TYPE}, but ENV HEALTH_SCRIPT is not set, exiting."
+    if [ "$(echo $HEALTH_TYPE | tr '[:upper:]' '[:lower:]')" = "script" ]; then
+        if [ "$HEALTH_SCRIPT" = "" ]; then
+            echo "FATAL: ENV HEALTH_TYPE is set to $HEALTH_TYPE, but ENV HEALTH_SCRIPT is not set, exiting."
             exit 1
-            if [ ! -z "${HEALTH_ENDPOINT}" ]; then
-                echo "WARN: "
-            fi
         fi
-        if [ $(echo ${HEALTH_SCRIPT} | grep " "}) ]; then
-            export HEALTH_TYPE="args"
-            export HEALTH_SCRIPT=$(echo -e "[\"$(echo ${HEALTH_SCRIPT} | sed 's/ /\", \"/g')\"]")
-        fi
+        if [ "$HEALTH_ENDPOINT" != "" ]; then
+            echo "WARN: ENV HEALTH_ENDPOINT is set with HEALTH_TYPE of $HEALTH_TYPE - Disabling HEALTH_ENDPOINT."
+            echo "WARN: Only use HEALTH_ENDPOINT with HEALTH_TYPE of HTTP/TCP"
+            export HEALTH_ENDPOINT=""
+        fi  
+
+        # Render health check script
+        echo $HEALTH_SCRIPT>script.json
+        HEALTH_SCRIPT=$(echo $(cat script.json) | envsubst)
+        export HEALTH_SCRIPT="\"/bin/sh -c \\\"$HEALTH_SCRIPT\\\"\""
     else 
-        if [ -z "${HEALTH_ENDPOINT}" ]; then
-            echo "ENV HEALTH_ENDPOINT has not been set, exiting."
+        if [ "$HEALTH_ENDPOINT" = "" ]; then
+            echo "FATAL: ENV HEALTH_ENDPOINT has not been set, exiting."
             exit 1
         fi
+        if [ "$HEALTH_SCRIPT" != "" ]; then
+            echo "WARN: ENV HEALTH_SCRIPT is set with HEALTH_TYPE of $HEALTH_TYPE - Disabling HEALTH_SCRIPT."
+            echo "WARN: Only use HEALTH_SCRIPT with HEALTH_TYPE of Script"
+            export HEALTH_SCRIPT=""
+        fi
+
+        # Render health check endpoint
+        echo $HEALTH_ENDPOINT>endpoint.json
+        HEALTH_ENDPOINT=$(echo $(cat endpoint.json) | envsubst)
+        export HEALTH_ENDPOINT="\"$HEALTH_ENDPOINT\""
     fi
 
-    # Set defaults for non-required health check fields
-    if [ -z "${HEALTH_DEREGISTER_AFTER}" ]; then
+    # Set defaults and alert for non-required health check fields
+    if [ "$HEALTH_DEREGISTER_AFTER" = "" ]; then
         export HEALTH_DEREGISTER_AFTER="1m"
+        echo "Using default HEALTH_DEREGISTER_AFTER value: $HEALTH_DEREGISTER_AFTER"
     fi
-    if [ -z "${HEALTH_INTERVAL}" ]; then
+    if [ "$HEALTH_INTERVAL" = "" ]; then
         export HEALTH_INTERVAL="10s"
+        echo "Using default HEALTH_INTERVAL value: $HEALTH_INTERVAL"
     fi
-    if [ -z "${HEALTH_TIMEOUT}" ]; then
+    if [ "$HEALTH_TIMEOUT" = "" ]; then
         export HEALTH_TIMEOUT="1s"
+        echo "Using default HEALTH_TIMEOUT value: $HEALTH_TIMEOUT"
     fi
-    if [ -z "${HEALTH_TLS_SKIP_VERIFY}" ]; then
+    if [ "$HEALTH_TLS_SKIP_VERIFY" = "" ]; then
         export HEALTH_TLS_SKIP_VERIFY="true"
+        echo "Using default HEALTH_TLS_SKIP_VERIFY value: $HEALTH_TLS_SKIP_VERIFY"
     fi
-    
-    export HEALTH_ENDPOINT=$(eval echo -e "${HEALTH_ENDPOINT}")
-    export HEALTHTMPL=$(cat /check.json)
-    export CHECK_SCRIPT=$(eval echo -e \"$HEALTHTMPL\")
+    export CHECK_SCRIPT=$(echo $(cat check.json) | envsubst)
 fi
 
-# Render the payload template
-JSONTMPL=$(cat /payload.json)
-PAYLOAD=$(eval echo -e \"$JSONTMPL\")
-echo $PAYLOAD>reg.json
-echo "Registering ${SERVICE_ID} in consul as service: ${SERVICE_NAME} address: ${SERVICE_IP} port: ${SERVICE_PORT}"
+# Render and write final json payload
+PAYLOAD=$(echo $(cat payload.json) | envsubst)
+echo $PAYLOAD>/reg.json
+
+echo "Registering with Consul Agent: $CONSUL_PROTOCOL://$NODE_IP:8500"
+echo "Registering $SERVICE_ID in consul as service: $SERVICE_NAME address: $SERVICE_IP port: $SERVICE_PORT"
 echo "Registration JSON:"
-cat /reg.json | jq
+cat /reg.json
 
 # Loop until the container catches a signal to shutdown
 while true; do
-    # Register the service continually in consul with the json blob you've constructed
-    # Registration happens continually in case your main pod dies and is restarted without the 
-    # entire pod being restarted. If the pod goes away HEALTH_DEREGISTER_INTERVAL will clean up
-    # the orphaned service eventually. It will be unhealthy/not serve traffic in the mean time
+
+    # Register the service continually in consul with the json object you've constructed
+    # Registration happens continually in case your main container dies and is restarted without 
+    # the entire pod being restarted. If the pod goes away HEALTH_DEREGISTER_INTERVAL will clean up
+    # the orphaned service eventually. It will be unhealthy and won't serve traffic in the mean time
     curl -s \
         --request PUT \
         --data @reg.json \
-        http://${NODE_IP}:8500/v1/agent/service/register
-        
-    # Sleep for half the automatic deregistration time
+        $CONSUL_PROTOCOL://${NODE_IP}:8500/v1/agent/service/register
+
+    # Sleep for half the default automatic deregistration time
     sleep 30
 done
 

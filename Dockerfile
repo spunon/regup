@@ -1,7 +1,11 @@
-FROM registry.hub.docker.com/odise/busybox-curl
+FROM alpine:3.6
 MAINTAINER spunon@gmail.com
 
-RUN curl -sL0 https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64>/bin/jq && chmod +x /bin/jq
+RUN set -x && \
+    apk add --update libintl curl && \
+    apk add --virtual build_deps gettext &&  \
+    cp /usr/bin/envsubst /usr/local/bin/envsubst && \
+    apk del build_deps
 
 ADD start.sh payload.json check.json /
 

@@ -11,25 +11,16 @@ spec:
         app: nginx
     spec:
       containers:
-      # Nginx Container
+      # Demo Nginx Container
       - name: nginx
         image: nginx
         ports:
         - name: http
           containerPort: 80
-        env:
-        - name: NODE_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.hostIP
-        - name: POD_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
   
       # Regup Sidekick Container (Regsiter pods in consul)
       - name: regup
-        image: docker.io/regup:v1
+        image: docker.io/spunon/regup:v1
         imagePullPolicy: Always
         env:
         # *Required - IP of the host node, assumes consul agent is running on the node where 
@@ -43,25 +34,28 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
-        # *Required - Register service with this address, POD/NODE
+        # *Required - Register service with this address, (POD/NODE)
         - name: ADDRESS_TYPE
           value: "POD"
         # *Required - Name of the service you'd like to register
         - name: SERVICE_NAME
           value: "nginx"
-        # *Required - Port you'd like to advertise along with your apps address above
+        # *Required - Port you'd like to register for your service
         - name: SERVICE_PORT
           value: "80"
-        # *Required (If using health check) - Type of health check, currently supports HTTP or TCP
+        # *Required (If using health check) - Type of health check, currently supports native
+        # HTTP, TCP checking as well as Script
         - name: HEALTH_TYPE
-          value: "HTTP"
-        # *Required (If using health check) - HTTP/TCP endpoint for the healthcheck to query
+          value: "Script"
+        # *Required (If using HTTP/TCP checks) - HTTP/TCP endpoint for the healthcheck to query
         # NOTE: SERVICE_IP will be either POD_IP or NODE_IP depending on ADDRESS_TYPE
         - name: HEALTH_ENDPOINT
-          value: "http://${SERVICE_IP}:${SERVICE_PORT}${HEALTH_CONTEXT}"
-        # Extra context to be used with HEALTH_ENDPOINT below
-        - name: HEALTH_CONTEXT
-          value: "/index.html"
+          value: "http://${SERVICE_IP}:${SERVICE_PORT}"
+        # *Required (If using Script check) - Script that determines service health
+        # NOTE: To be used in place of HEALTH_ENDPOINT with health check type of Script
+        # Script exit status code 0 satisfies the health check, all other exit codes fail
+        - name: HEALTH_SCRIPT
+          value: "curl -sI http://${SERVICE_IP}:${SERVICE_PORT} | grep HTTP | grep 200"
         # Deregister if service is unhealthy for a specififed length of time (default 1m)
         - name: HEALTH_DEREGISTER_AFTER
           value: "1m"
@@ -74,3 +68,6 @@ spec:
         # Skip TLS verification (default true)
         - name: HEALTH_TLS_SKIP_VERIFY
           value: "true"
+        # Consul Protocol (default http)
+        - name: CONSUL_PROTOCOL
+          value: "http"

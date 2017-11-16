@@ -1,10 +1,10 @@
 ,
-\"Check\": {
-    \"ID\": \"${SERVICE_ID}-${HEALTH_TYPE}\",
-    \"Name\": \"Health Check (${HEALTH_TYPE})\",
-    \"DeregisterCriticalServiceAfter\": \"${HEALTH_DEREGISTER_AFTER}\",
-    \"${HEALTH_TYPE}\": \"${HEALTH_ENDPOINT}\"${HEALTH_SCRIPT},
-    \"Interval\": \"${HEALTH_INTERVAL}\",
-    \"Timeout\": \"${HEALTH_TIMEOUT}\",
-    \"TLSSkipVerify\": ${HEALTH_TLS_SKIP_VERIFY}
+"Check": {
+    "ID": "${SERVICE_ID}-${HEALTH_TYPE}",
+    "Name": "Health Check (${HEALTH_TYPE})",
+    "DeregisterCriticalServiceAfter": "${HEALTH_DEREGISTER_AFTER}",
+    "${HEALTH_TYPE}": ${HEALTH_ENDPOINT}${HEALTH_SCRIPT},
+    "Interval": "${HEALTH_INTERVAL}",
+    "Timeout": "${HEALTH_TIMEOUT}",
+    "TLSSkipVerify": ${HEALTH_TLS_SKIP_VERIFY}
   }
