@@ -25,7 +25,12 @@ else
 fi
 
 export SERVICE_PORT
-export SERVICE_ID=$SERVICE_NAME-$RANDOM
+export SERVICE_ID=$SERVICE_NAME-$SERVICE_IP
+
+# Set optional garbage at the end of the ID for chillerman
+if [ ! -z $UNIQUE_ID ]; then
+    export SERVICE_ID=$SERVICE_ID-$UNIQUE_ID
+fi
 
 # Check to see if HEALTH_TYPE was set, to see if we need to render
 # the healtcheck template that will be placed inside the payload
@@ -89,7 +94,7 @@ PAYLOAD=$(echo $(cat payload.json) | envsubst)
 echo $PAYLOAD>/reg.json
 
 echo "Registering with Consul Agent: $CONSUL_PROTOCOL://$NODE_IP:8500"
-echo "Registering $SERVICE_ID in consul as service: $SERVICE_NAME address: $SERVICE_IP port: $SERVICE_PORT"
+echo "Registering $SERVICE_ID in Consul as Service: $SERVICE_NAME, Address: $SERVICE_IP, Port: $SERVICE_PORT"
 echo "Registration JSON:"
 cat /reg.json
 
