@@ -27,7 +27,8 @@ fi
 export SERVICE_PORT
 export SERVICE_ID=$SERVICE_NAME-$SERVICE_IP
 
-# Set optional garbage at the end of the ID for chillerman
+# Append UNIQUE_ID to the end of the service name if it exists
+# For registering multiple of the same service on one machine (e.g. minikube)
 if [ ! -z $UNIQUE_ID ]; then
     export SERVICE_ID=$SERVICE_ID-$UNIQUE_ID
 fi

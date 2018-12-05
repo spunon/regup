@@ -47,6 +47,10 @@ spec:
         # HTTP, TCP checking as well as Script
         - name: HEALTH_TYPE
           value: "Script"
+        # Unique id to be appended to your service id in consul
+        # Helpful when you're registering multiple instance of the same service on one node (eg.minikube)
+        - name: UNIQUE_ID
+          value: "0"
         # *Required (If using HTTP/TCP checks) - HTTP/TCP endpoint for the healthcheck to query
         # NOTE: SERVICE_IP will be either POD_IP or NODE_IP depending on ADDRESS_TYPE
         - name: HEALTH_ENDPOINT
