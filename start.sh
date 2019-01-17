@@ -112,7 +112,8 @@ while true; do
         $CONSUL_PROTOCOL://${NODE_IP}:8500/v1/agent/service/register
 
     # Sleep for half the default automatic deregistration time
-    sleep 30
+    sleep 30 &
+    wait $!
 done
 
 
